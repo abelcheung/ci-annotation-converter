@@ -216,7 +216,7 @@ class MypyAdapter(InputAdapter):
         "column": int,
         "message": str,
         "hint": s.Or(str, s.Schema(None)),
-        "code": str,
+        "code": s.Or(str, s.Schema(None)),
         "severity": s.Or(
             s.Schema("note"),
             s.Schema("warning"),
@@ -238,7 +238,7 @@ class MypyAdapter(InputAdapter):
             column: int
             message: str
             hint: str | None
-            code: str
+            code: str | None
             severity: Literal["note", "warning", "error"]
 
         json_str = "[" + ",".join([line.strip() for line in infile.readlines()]) + "]"
