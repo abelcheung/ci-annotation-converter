@@ -1,12 +1,14 @@
+# pyright: reportAny=none,reportUnannotatedClassAttribute=none
+
 from __future__ import annotations
 
+import abc
 import argparse
 import contextlib
 import dataclasses
 import enum
 import hashlib
 import json
-import pathlib
 import sys
 from abc import abstractmethod
 from typing import (
@@ -17,6 +19,7 @@ from typing import (
     TextIO,
     TypedDict,
     cast,
+    override,
 )
 
 import schema as s
@@ -47,12 +50,12 @@ class AnnotationItem:
     fingerprint: str = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        m = hashlib.md5()
+        m = hashlib.md5(usedforsecurity=False)
         m.update(repr(self).encode(encoding="utf-8"))
         object.__setattr__(self, "fingerprint", m.hexdigest())
 
 
-class InputAdapter:
+class InputAdapter(abc.ABC):
     registry: ClassVar[dict[str, type[InputAdapter]]] = {}
     id: ClassVar[str]
     schema: ClassVar[s.Schema]
@@ -68,7 +71,7 @@ class InputAdapter:
         cls.registry[cls.id] = cls
 
 
-class OutputAdapter:
+class OutputAdapter(abc.ABC):
     registry: ClassVar[dict[str, type[OutputAdapter]]] = {}
     id: ClassVar[str]
     severity_map: ClassVar[dict[Severity, str]]
@@ -107,6 +110,7 @@ class PyrightAdapter(InputAdapter):
         "error": Severity.ERROR,
     }
 
+    @override
     @classmethod
     def from_file(cls, infile: TextIO) -> list[AnnotationItem]:
         class _PyrightDiagPosition(TypedDict):
@@ -173,6 +177,7 @@ class PyreflyAdapter(InputAdapter):
         "error": Severity.ERROR,
     }
 
+    @override
     @classmethod
     def from_file(cls, infile: TextIO) -> list[AnnotationItem]:
         class _PyreflyDiagItem(TypedDict):
@@ -230,6 +235,7 @@ class MypyAdapter(InputAdapter):
         "error": Severity.ERROR,
     }
 
+    @override
     @classmethod
     def from_file(cls, infile: TextIO) -> list[AnnotationItem]:
         class _MypyDiagItem(TypedDict):
@@ -296,6 +302,7 @@ class TyAdapter(InputAdapter):
         "critical": Severity.CRIT,
     }
 
+    @override
     @classmethod
     def from_file(cls, infile: TextIO) -> list[AnnotationItem]:
         class _TyDiagPosition(TypedDict):
@@ -345,6 +352,7 @@ class GitHubJsonAdapter(OutputAdapter):
         Severity.ERROR: "error",
     }
 
+    @override
     @classmethod
     def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
         result: list[dict[str, str | int | None]] = []
@@ -379,6 +387,7 @@ class GitHubTextAdapter(OutputAdapter):
         Severity.ERROR: "error",
     }
 
+    @override
     @classmethod
     def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
         for item in annotations:
@@ -405,7 +414,7 @@ class GitHubTextAdapter(OutputAdapter):
                 ",".join(optional_params),
                 message.replace(chr(10), r"\n").replace(chr(13), r"\r"),
             )
-            outfile.write(formatted_message)
+            _ = outfile.write(formatted_message)
 
 
 class GitLabCodeQualityAdapter(OutputAdapter):
@@ -417,6 +426,7 @@ class GitLabCodeQualityAdapter(OutputAdapter):
         Severity.ERROR: "major",
     }
 
+    @override
     @classmethod
     def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
         gl_annotations: list[dict[str, Any]] = []
@@ -452,35 +462,29 @@ class GitLabCodeQualityAdapter(OutputAdapter):
 
 def main() -> None:
     argparser = argparse.ArgumentParser(description="Conversion from program output to CI/CD annotation formats")
-    argparser.add_argument(
+    _ = argparser.add_argument(
         "informat",
         choices=InputAdapter.registry.keys(),
         metavar="INPUT_FORMAT",
         help="Choose from: " + ", ".join(InputAdapter.registry.keys()),
     )
-    argparser.add_argument(
+    _ = argparser.add_argument(
         "outformat",
         choices=OutputAdapter.registry.keys(),
         metavar="OUTPUT_FORMAT",
         help="Choose from: " + ", ".join(OutputAdapter.registry.keys()),
     )
-    argparser.add_argument(
+    _ = argparser.add_argument(
         "-i",
         metavar="INFILE",
         help="Input file (standard input if omitted)",
     )
-    argparser.add_argument(
+    _ = argparser.add_argument(
         "-o",
         metavar="OUTFILE",
         help="Output file (standard output if omitted)",
     )
     args = argparser.parse_args()
-
-    if args.i is not None:
-        inpath = pathlib.Path(args.i)
-        infile = inpath.open("r", encoding="utf-8")
-    else:
-        infile = sys.stdin
 
     if args.i is None:
         cm = contextlib.nullcontext(sys.stdin)
