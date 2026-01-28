@@ -405,14 +405,14 @@ class GitHubTextAdapter(OutputAdapter):
                 optional_params.append(f"endColumn={item.end_col}")
             title = f"{item.tool_id} ({item.title})" if item.title else item.tool_id
             optional_params.append(
-                f"title={title.replace(chr(10), ' ').replace(chr(13), ' ')}"
+                f"title={title.replace("\r", '').replace("\n", ' ')}"
             )
             message = item.message + (f"\n{item.detail}" if item.detail else "")
 
             formatted_message = "::{} {}::{}\n".format(
                 cls.severity_map[item.level],
                 ",".join(optional_params),
-                message.replace(chr(10), r"\n").replace(chr(13), r"\r"),
+                message.replace("\n", "%0A"),
             )
             _ = outfile.write(formatted_message)
 
