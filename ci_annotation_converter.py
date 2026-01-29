@@ -1,5 +1,3 @@
-# pyright: reportAny=none,reportUnannotatedClassAttribute=none
-
 from __future__ import annotations
 
 import abc

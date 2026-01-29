@@ -1,0 +1,4 @@
+[tool.basedpyright]
+reportAny = "none"
+reportExplicitAny = "none"
+reportUnannotatedClassAttribute = "none"
