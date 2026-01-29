@@ -78,7 +78,7 @@ class OutputAdapter(abc.ABC):
 
     @classmethod
     @abstractmethod
-    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
+    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> int:
         pass
 
     def __init_subclass__(cls) -> None:
@@ -354,11 +354,13 @@ class GitHubJsonAdapter(OutputAdapter):
 
     @override
     @classmethod
-    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
+    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> int:
         result: list[dict[str, str | int | None]] = []
+        count = 0
         for item in annotations:
             if item.level.value < Severity.WARN.value:
                 continue
+            count += 1
             anno_item = {
                 "path": item.path,
                 "start_line": item.start_line,
@@ -375,6 +377,7 @@ class GitHubJsonAdapter(OutputAdapter):
             }
             result.append(anno_item)
         json.dump(result, outfile, indent=2)
+        return count
 
 
 class GitHubTextAdapter(OutputAdapter):
@@ -389,10 +392,12 @@ class GitHubTextAdapter(OutputAdapter):
 
     @override
     @classmethod
-    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
+    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> int:
+        count = 0
         for item in annotations:
             if item.level.value < Severity.WARN.value:
                 continue
+            count += 1
             optional_params: list[str] = []
             optional_params.append(f"file={item.path.replace(chr(92), '\\\\')}")
             if item.start_line is not None:
@@ -415,6 +420,7 @@ class GitHubTextAdapter(OutputAdapter):
                 message.replace("\n", "%0A"),
             )
             _ = outfile.write(formatted_message)
+        return count
 
 
 class GitLabCodeQualityAdapter(OutputAdapter):
@@ -428,11 +434,13 @@ class GitLabCodeQualityAdapter(OutputAdapter):
 
     @override
     @classmethod
-    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> None:
+    def to_file(cls, annotations: list[AnnotationItem], outfile: TextIO) -> int:
         gl_annotations: list[dict[str, Any]] = []
+        count = 0
         for item in annotations:
             if item.level.value < Severity.WARN.value:
                 continue
+            count += 1
             anno_item: dict[str, Any] = {
                 "description": item.message,  # TODO add item.hint
                 "check_name": (
@@ -458,6 +466,7 @@ class GitLabCodeQualityAdapter(OutputAdapter):
                 anno_item["location"]["positions"]["end"]["column"] = item.end_col
             gl_annotations.append(anno_item)
         json.dump(gl_annotations, outfile, indent=2)
+        return count
 
 
 def main() -> None:
@@ -484,6 +493,11 @@ def main() -> None:
         metavar="OUTFILE",
         help="Output file (standard output if omitted)",
     )
+    _ = argparser.add_argument(
+        "-e",
+        action="store_true",
+        help="Exit with non-zero status upon annotation",
+    )
     args = argparser.parse_args()
 
     if args.i is None:
@@ -500,7 +514,10 @@ def main() -> None:
         cm = open(args.o, "w", encoding="utf-8")
 
     with cm as outfile:
-        getattr(OutputAdapter.registry[args.outformat], "to_file")(annotations, outfile)
+        status = getattr(OutputAdapter.registry[args.outformat], "to_file")(annotations, outfile)
+
+    if args.e is True:
+        exit(status)
 
 
 if __name__ == "__main__":
