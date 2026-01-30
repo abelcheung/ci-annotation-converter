@@ -190,7 +190,13 @@ class PyreflyAdapter(InputAdapter):
             concise_description: str
             severity: Literal["info", "warning", "error"]
 
-        report = json.load(infile)
+        try:
+            report = json.load(infile)
+        except Exception:
+            # pyrefly (circa 0.47.0) appends github text formatted annotation at the end of json output
+            decoder = json.JSONDecoder()
+            _ = infile.seek(0, 0)
+            report, _ = decoder.raw_decode(infile.read())
         result: list[AnnotationItem] = []
         for item in report["errors"]:
             diag = cast(_PyreflyDiagItem, cls.schema.validate(item))
